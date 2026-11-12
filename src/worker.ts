@@ -11,6 +11,9 @@ export interface Env extends Environment {}
 type Handler = (query: URLSearchParams, params: string[]) => Promise<Response>;
 interface Route { pattern: RegExp; handler: Handler; }
 
+// Keep provider instances and their in-memory caches alive between requests in the same Worker isolate.
+let cachedRoutes: Route[] | undefined;
+
 const manifests = {
   root: { id: "com.echomusic.lossless", name: "Lossless", version: "1.0.0" },
   qobuzdl: { id: "com.EchoMusic.qobuz.qobuzdl", name: "Qobuz-DL", version: "1.0.0" },
@@ -104,7 +107,8 @@ export default {
     try {
       const config = loadConfig(env);
       const url = new URL(request.url);
-      for (const route of createRoutes(config)) {
+      cachedRoutes ??= createRoutes(config);
+      for (const route of cachedRoutes) {
         const match = route.pattern.exec(url.pathname);
         if (match) {
           const response = await route.handler(url.searchParams, match.slice(1));
