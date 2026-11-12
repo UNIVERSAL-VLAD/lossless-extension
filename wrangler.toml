@@ -1,0 +1,13 @@
+name = "lossless-extension"
+main = "src/worker.ts"
+compatibility_date = "2026-11-12"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+QOBUZ_PROVIDER = "multi"
+CACHE_TTL_SECONDS = "300"
+REQUEST_TIMEOUT_MS = "6000"
+UPSTREAM_RETRIES = "1"
+
+[observability]
+enabled = true
