@@ -1,119 +1,72 @@
-<p align="center">
-  <img src="assets/banner.png" alt="Echo Music · Lossless Extension" width="100%">
-</p>
+# Lossless Extension
 
-<p align="center">
-  A self-hosted lossless audio addon for Echo Music, powered by multi-provider streaming.
-</p>
+A self-hosted lossless audio addon for Echo Music, powered by multi-provider streaming.
 
-## Overview
+## Deploy to Cloudflare Workers
 
-Lossless Extension resolves lossless audio streams across multiple upstream providers in parallel, serving whichever responds first. It integrates directly into Echo Music to deliver FLAC and high-fidelity audio with automatic quality fallback.
+1. Connect this GitHub repository in **Cloudflare Dashboard → Workers & Pages → Create → Import a repository**.
+2. Add the secret `QOBUZ_ID_SECRET` in **Settings → Variables and Secrets**. Generate a strong value with `openssl rand -hex 32`.
+3. Deploy using the `wrangler.toml` configuration in this repository. The Worker URL will look like `https://lossless-extension.<account>.workers.dev`.
 
-> **Note:** This addon is community-maintained and relies on third-party upstream providers. As a result, streams may stop working at any time without notice, though active efforts will always be made to restore functionality.
+CLI deployment:
 
-## Quick Setup
+```bash
+npm install
+npx wrangler login
+npx wrangler secret put QOBUZ_ID_SECRET
+npm run deploy:worker
+```
 
-### 1. Deploy to Vercel
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/EchoMusicApp/lossless-extension&project-name=lossless-extension&repository-name=lossless-extension&env=QOBUZ_ID_SECRET&envDescription=A%20long%20random%20secret%20used%20to%20sign%20track%20IDs.%20Generate%20one%20with%20openssl%20rand%20-hex%2032&envLink=https://github.com/EchoMusicApp/lossless-extension%23configuration)
-
-Configure the required environment variable during deployment:
-
-| Variable | Required | Description |
-| :--- | :---: | :--- |
-| `QOBUZ_ID_SECRET` | Yes | 32-byte secret used to sign track IDs. Generate via `openssl rand -hex 32`. |
-
-All other provider settings include preconfigured defaults.
-
-### 2. Copy Deployment URL
-
-From your Vercel project dashboard, copy the production deployment URL (e.g. `https://lossless-extension-xxxx.vercel.app`). Do not append `/search` or `/stream` paths.
-
-### 3. Connect to Echo Music
-
-1. Open **Echo Music**.
-2. Go to **Settings → Sources → Add an Addon**.
-3. Set an addon name (e.g. `Lossless`) and paste your deployment URL into **Server URL**.
-4. Save and enable the addon.
+Test the deployment by opening `/health`; it should return `{"ok":true}`. Add the base Worker URL to Echo Music under **Settings → Sources → Add an Addon**.
 
 ## Configuration
 
-Custom upstream URLs and provider modes can be customized using environment variables:
+The default provider mode is `multi`. Optional Worker variables:
 
-```dotenv
-# Required
-QOBUZ_ID_SECRET=                   # generate with: openssl rand -hex 32
+| Variable | Default | Description |
+| --- | --- | --- |
+| `QOBUZ_PROVIDER` | `multi` | `multi`, `qobuzdl`, `http`, or `stub` |
+| `QOBUZ_ID_SECRET` | built-in fallback | Secret used to sign track IDs; set a strong secret in production |
+| `QOBUZ_UPSTREAM_BASE_URL` | Qobuz-DL endpoint | Qobuz-DL upstream base URL |
+| `LASTBABE_BASE_URL` | LastBabe endpoint | LastBabe upstream base URL |
+| `MONOCHROME_BASE_URL` | Monochrome endpoint | Monochrome upstream base URL |
+| `DEEZER_BASE_URL` | Deezer endpoint | Deezer upstream base URL |
+| `ELJOHNZC_BASE_URL` | Eljohnzc endpoint | Eljohnzc upstream base URL |
+| `INSTABLE_BASE_URL` | Instable endpoint | Instable upstream base URL |
+| `REQUEST_TIMEOUT_MS` | `6000` | Upstream request timeout |
+| `UPSTREAM_RETRIES` | `1` | Retry count |
+| `CACHE_TTL_SECONDS` | `300` | Search cache lifetime |
 
-# Optional (defaults shown)
-QOBUZ_PROVIDER=multi               # multi | qobuzdl | http | stub
-QOBUZ_UPSTREAM_BASE_URL=https://qobuz-dll.foreyou.workers.dev
-LASTBABE_BASE_URL=https://lastbabe.velixir.run
-MONOCHROME_BASE_URL=https://tracks.monochrome.st
-DEEZER_BASE_URL=https://dzr.tabs-vs-spaces.wtf
-ELJOHNZC_BASE_URL=https://eljohnzc-addon.de.deplexo.com/4433c7caff7fd070309e
-INSTABLE_BASE_URL=https://instable.arcod.xyz
-```
+The `http` provider also requires `QOBUZ_API_BASE_URL`, `QOBUZ_SEARCH_PATH`, and `QOBUZ_STREAM_PATH`. Set `QOBUZ_API_TOKEN` as a secret if needed.
 
-### Provider Routing
+## Routes
 
-Providers can be queried collectively or routed individually using path prefixes:
+| Prefix | Provider |
+| --- | --- |
+| `/` | Multi-provider |
+| `/a` | Qobuz-DL |
+| `/b` | LastBabe |
+| `/c` | Monochrome |
+| `/d` | Deezer |
+| `/e` | Eljohnzc |
+| `/f` | Instable |
 
-| Route Prefix | Provider | Target Quality |
-| :---: | :--- | :--- |
-| `/` *(root)* | Multi (races all providers) | FLAC / Best Available |
-| `/a` | Qobuz-DL | Lossless |
-| `/b` | LastBabe | Lossless |
-| `/c` | Monochrome | FLAC |
-| `/d` | Deezer | High / Low |
-| `/e` | Eljohnzc | Lossless |
-| `/f` | Instable | Lossless |
+Each addon exposes `GET /manifest.json`, `GET /search?q=<query>&quality=<quality>`, and `GET /stream/<id>`.
 
-Each route exposes standard addon endpoints:
-- `GET /manifest.json`
-- `GET /search?q=<query>&quality=<quality>`
-- `GET /stream/:id`
+## Local development and tests
 
-## Local Development
-
-Requires Node.js 20 or higher.
+Requires Node.js 20 or newer.
 
 ```bash
-# Install dependencies
 npm install
-
-# Start local dev server
 npm run dev
-
-# Run test suite and build
 npm test
 npm run build
+npm run dev:worker
 ```
 
-Example requests:
+The original Node/Vercel entry point remains available; Cloudflare Workers uses `src/worker.ts`.
 
-```bash
-# Addon manifest
-curl http://localhost:3000/manifest.json
+## Disclaimer
 
-# Search
-curl "http://localhost:3000/search?q=kind+of+blue&quality=LOSSLESS"
-
-# Stream metadata
-curl -i "http://localhost:3000/stream/<track_id>?quality=LOSSLESS"
-```
-
-## Legal & Disclaimer
-
-- **No Media Stored:** This server operates strictly as a real-time metadata resolver and stream redirector. No audio files or streams are cached, downloaded, or stored on this server.
-- **Host Responsibility:** Users deploying and hosting this software are solely responsible for compliance with applicable local laws, regulations, and third-party terms of service.
-- **Availability:** This project is maintained on a best-effort community basis. Upstream provider endpoints may change or go offline without notice; fixes are developed to restore streaming as quickly as possible.
-- **Disclaimer:** This is an independent, community-driven project not affiliated with, endorsed by, or sponsored by Qobuz, Deezer, JioSaavn, or any upstream service providers.
-
-## Credits
-
-All source files and provider implementations provided by [Silly Kat](https://github.com/KATx-dev).
-
-## License
-
-Licensed under the [GNU General Public License v3.0](LICENSE).
+This community-maintained addon depends on third-party upstream providers, which may change or become unavailable. Users are responsible for complying with applicable laws and third-party terms. No audio files are stored by this addon.
