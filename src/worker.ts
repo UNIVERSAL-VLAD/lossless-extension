@@ -108,7 +108,7 @@ export default {
         const match = route.pattern.exec(url.pathname);
         if (match) {
           const response = await route.handler(url.searchParams, match.slice(1));
-          return request.method === "HEAD" ? new Response(null, response) : response;
+          return request.method === "HEAD" ? new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers }) : response;
         }
       }
       return json({ error: "not found" }, 404);
